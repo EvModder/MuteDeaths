@@ -1,0 +1,33 @@
+name: MuteDeaths
+main: net.evmodder.MuteDeaths.MuteDeaths
+author: EvModder
+website: https://github.com/EvModder/MuteDeaths
+description: Mute deaths (and kills) from specific players
+version: 1.0
+api-version: 1.13
+
+
+commands:
+  mutedeath:
+    description: Mute death messages from a player
+    usage: /mutedeaths <who>
+    aliases: [mutedeaths]
+    permission: mutedeaths.deaths
+    permission-message: You do not have permission to do this.
+
+  mutekill:
+    description: Mute kill messages from a spammy murderer
+    usage: /mutekills <who>
+    aliases: [mutekills]
+    permission: mutedeaths.kills
+    permission-message: You do not have permission to do this.
+
+
+permissions:
+  mutedeaths.deaths:
+    description: Permission to use /mutedeaths
+    default: true
+
+  mutedeaths.kills:
+    description: Permission to use /mutekills
+    default: true
