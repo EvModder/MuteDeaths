@@ -54,6 +54,10 @@ public class MuteDeaths extends EvPlugin{
 				sender.sendMessage(ChatColor.RED+"This command can only be run by in-game players");
 				return true;
 			}
+			if(args.length == 0){
+				sender.sendMessage(ChatColor.RED+"Please specific a target");
+				return false;
+			}
 			UUID target = null;
 			try{target = UUID.fromString(args[0]);}
 			catch(IllegalArgumentException ex){
@@ -79,7 +83,7 @@ public class MuteDeaths extends EvPlugin{
 			else{
 				sender.sendMessage(ChatColor.GOLD+"Unmuted death messages from "+ChatColor.RESET+findNameForUUID(target));
 			}
-			return false;
+			return true;
 		}
 	}
 	public class CommandMuteKill extends MuteCommand{
@@ -92,7 +96,7 @@ public class MuteDeaths extends EvPlugin{
 			else{
 				sender.sendMessage(ChatColor.GOLD+"Unmuted kills from "+ChatColor.RESET+findNameForUUID(target));
 			}
-			return false;
+			return true;
 		}
 	}
 }

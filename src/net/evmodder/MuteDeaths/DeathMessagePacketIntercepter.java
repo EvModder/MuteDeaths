@@ -84,8 +84,8 @@ public class DeathMessagePacketIntercepter{
 
 	// Returns true if muted, false if unmuted.
 	public boolean muteKills(UUID who, UUID mutedKiller){
-		HashSet<UUID> muted = blockedVictims.get(who);
-		if(muted == null) blockedVictims.put(who, muted=new HashSet<>());
+		HashSet<UUID> muted = blockedKillers.get(who);
+		if(muted == null) blockedKillers.put(who, muted=new HashSet<>());
 		if(!muted.add(mutedKiller)){
 			muted.remove(mutedKiller);
 			return false;
@@ -124,10 +124,12 @@ public class DeathMessagePacketIntercepter{
 					return;
 				}
 				final UUID victimUUID = UUID.fromString(matcher.group()); // victimUUID is always first
-				if(blockedVictims.get(uuid).contains(victimUUID)) return;
+				HashSet<UUID> mutedVictims = blockedVictims.get(uuid);
+				if(mutedVictims != null && mutedVictims.contains(victimUUID)) return;
 				if(matcher.find()){
 					final UUID killerUUID = UUID.fromString(matcher.group()); // TODO: Is killerUUID the only other id? Is it always 2nd?
-					if(blockedKillers.get(uuid).contains(killerUUID)) return;
+					HashSet<UUID> mutedKillers = blockedKillers.get(uuid);
+					if(mutedKillers != null && mutedKillers.contains(killerUUID)) return;
 				}
 				super.write(context, packet, promise);
 				return;
