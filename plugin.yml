@@ -5,7 +5,7 @@ website: https://github.com/EvModder/MuteDeaths
 description: Mute deaths (and kills) from specific players
 version: 1.0
 api-version: 1.13
-
+soft-depend: [Dropheads]
 
 commands:
   mutedeath:

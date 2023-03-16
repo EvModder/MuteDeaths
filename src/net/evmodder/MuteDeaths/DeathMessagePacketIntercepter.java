@@ -49,6 +49,7 @@ public class DeathMessagePacketIntercepter{
 			getChatBaseComp = method;
 		}
 
+		// Injecting packet intercepter when players join/leave
 		pl.getServer().getPluginManager().registerEvents(new Listener(){
 			@EventHandler public void onJoin(PlayerJoinEvent evt){
 				try{injectPlayer(evt.getPlayer());}
@@ -57,6 +58,14 @@ public class DeathMessagePacketIntercepter{
 			@EventHandler public void onQuit(PlayerQuitEvent evt){removePlayer(evt.getPlayer());}
 		}, pl);
 		for(Player p : pl.getServer().getOnlinePlayers()) injectPlayer(p);
+
+		// Listen for DropHeads BeheadMessageEvent
+		try{
+			Class.forName("net.evmodder.DropHeads.events.BeheadMessageEvent");
+			new BeheadMessageIntercepter(pl, blockedKillers, blockedVictims);
+		}
+		catch(ClassNotFoundException e){}
+		catch(IllegalStateException e){pl.getLogger().warning("reload issue?: "); e.printStackTrace();}
 	}
 
 	private void removePlayer(Player player){
@@ -94,23 +103,26 @@ public class DeathMessagePacketIntercepter{
 	}
 
 	private void injectPlayer(Player player){
-		PacketUtils_TODO_MoveToEvLib.getPlayerChannel(player).pipeline().addBefore("packet_handler", player.getName(), new ChannelDuplexHandler(){
+		PacketUtils_TODO_MoveToEvLib.getPlayerChannel(player).pipeline().addBefore("packet_handler", "mute_deaths", new ChannelDuplexHandler(){
 			final UUID uuid = player.getUniqueId();
 			@Override public void write(ChannelHandlerContext context, Object packet, ChannelPromise promise) throws Exception {
 				if(!outboundPacketClazz.isInstance(packet)){ // Not a chat packet
 					super.write(context, packet, promise);
 					return;
 				}
+				//pl.getLogger().info("chat packet");
 				final Object chatBaseComp = chatBaseCompField == null ? packet : chatBaseCompField.of(packet).get();
 				if(chatBaseComp == null){ // Chat packet does not have a comp field/method (pre-1.19)
 					super.write(context, packet, promise);
 					return;
 				}
+				//pl.getLogger().info("has base comp");
 				final String jsonMsg = (String)(chatBaseCompField == null ? getChatBaseComp.of(packet).call() : toJsonMethod.call(chatBaseComp));
 				if(jsonMsg == null){ // Chat comp is not a json object
 					super.write(context, packet, promise);
 					return;
 				}
+				//pl.getLogger().info("is json");
 				if(!jsonMsg.startsWith("{\"translate\":\"death.")){
 					super.write(context, packet, promise);
 					return;
