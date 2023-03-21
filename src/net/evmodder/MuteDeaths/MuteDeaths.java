@@ -27,6 +27,7 @@ public class MuteDeaths extends EvPlugin{
 		deathMessageBlocker = new DeathMessagePacketIntercepter(this);
 		new CommandMuteDeath(this);
 		new CommandMuteKill(this);
+		new CommandMuteBehead(this);
 
 		// Listen for DropHeads BeheadMessageEvent
 		try{
