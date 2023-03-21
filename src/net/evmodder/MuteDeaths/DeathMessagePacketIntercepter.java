@@ -58,14 +58,6 @@ public class DeathMessagePacketIntercepter{
 			@EventHandler public void onQuit(PlayerQuitEvent evt){removePlayer(evt.getPlayer());}
 		}, pl);
 		for(Player p : pl.getServer().getOnlinePlayers()) injectPlayer(p);
-
-		// Listen for DropHeads BeheadMessageEvent
-		try{
-			Class.forName("net.evmodder.DropHeads.events.BeheadMessageEvent");
-			new BeheadMessageIntercepter(pl, blockedKillers, blockedVictims);
-		}
-		catch(ClassNotFoundException e){}
-		catch(IllegalStateException e){pl.getLogger().warning("reload issue?: "); e.printStackTrace();}
 	}
 
 	private void removePlayer(Player player){
