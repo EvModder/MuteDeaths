@@ -15,6 +15,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
+import net.evmodder.EvLib.extras.PacketUtils;
 import net.evmodder.EvLib.extras.ReflectionUtils;
 import net.evmodder.EvLib.extras.ReflectionUtils.RefClass;
 import net.evmodder.EvLib.extras.ReflectionUtils.RefField;
@@ -24,7 +25,7 @@ public class DeathMessagePacketIntercepter{
 	private final Plugin pl;
 	private final HashMap<UUID, HashSet<UUID>> blockedKillers, blockedVictims;
 
-	private final RefClass outboundPacketClazz = ReflectionUtils.getRefClass(
+	private final RefClass outboundChatPacketClazz = ReflectionUtils.getRefClass(
 			"{nms}.PacketPlayOutChat", "{nm}.network.protocol.game.PacketPlayOutChat", "{nm}.network.protocol.game.ClientboundSystemChatPacket");
 	private final RefClass chatBaseCompClazz = ReflectionUtils.getRefClass(
 			"{nms}.IChatBaseComponent", "{nm}.network.chat.IChatBaseComponent");
@@ -32,8 +33,10 @@ public class DeathMessagePacketIntercepter{
 			"{nms}.IChatBaseComponent$ChatSerializer", "{nm}.network.chat.IChatBaseComponent$ChatSerializer");
 	private final RefField chatBaseCompField;
 	private final RefMethod getChatBaseComp;
+	private final RefMethod getJsonKyori; private final Object jsonSerializerKyori;
 	private final RefMethod toJsonMethod = chatSerializerClazz.findMethod(/*isStatic=*/true, String.class, chatBaseCompClazz);
-	private final Pattern uuidPattern = Pattern.compile("[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}");
+	private final Pattern uuidPattern1 = Pattern.compile("[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}");
+	private final Pattern uuidPattern2 = Pattern.compile("\\[I?;?\\s*(-?[0-9]+),\\s*(-?[0-9]+),\\s*(-?[0-9]+),\\s*(-?[0-9]+)\\s*\\]");
 
 	public DeathMessagePacketIntercepter(Plugin plugin){
 		pl = plugin;
@@ -41,12 +44,21 @@ public class DeathMessagePacketIntercepter{
 		blockedVictims = new HashMap<>();
 		
 		RefField field = null;
-		RefMethod method = null;
-		try{field = outboundPacketClazz.findField(chatBaseCompClazz);}
-		catch(RuntimeException ex){method = outboundPacketClazz.getMethod("content");}
+		RefMethod method = null, kyoriMethod = null; Object kyoriObj = null;
+		try{field = outboundChatPacketClazz.findField(chatBaseCompClazz);}
+		catch(RuntimeException e1){
+			try{
+				method = outboundChatPacketClazz.getMethod("adventure$content");
+				kyoriObj = ReflectionUtils.getRefClass("net.kyori.adventure.text.serializer.json.JSONComponentSerializer").getMethod("json").call();
+				kyoriMethod = ReflectionUtils.getRefClass("net.kyori.adventure.text.serializer.ComponentSerializer").findMethodByName("serialize");
+			}
+			catch(RuntimeException e2){method = outboundChatPacketClazz.getMethod("content");}
+		}
 		finally{
 			chatBaseCompField = field;
 			getChatBaseComp = method;
+			getJsonKyori = kyoriMethod;
+			jsonSerializerKyori = kyoriObj;
 		}
 
 		// Injecting packet intercepter when players join/leave
@@ -61,7 +73,7 @@ public class DeathMessagePacketIntercepter{
 	}
 
 	private void removePlayer(Player player){
-		final Channel channel = PacketUtils_TODO_MoveToEvLib.getPlayerChannel(player);
+		final Channel channel = PacketUtils.getPlayerChannel(player);
 		channel.eventLoop().submit(()->{
 			channel.pipeline().remove(player.getName());
 			return null;
@@ -94,47 +106,70 @@ public class DeathMessagePacketIntercepter{
 		return true;
 	}
 
+	private UUID parseUUIDFromFourIntStrings(String s1, String s2, String s3, String s4){
+		final Integer i1 = Integer.parseInt(s1), i2 = Integer.parseInt(s2), i3 = Integer.parseInt(s3), i4 = Integer.parseInt(s4); 
+		return new UUID((long)i1 << 32 | i2 & 0xFFFFFFFFL, (long)i3 << 32 | i4 & 0xFFFFFFFFL);
+	}
+
 	private void injectPlayer(Player player){
-		PacketUtils_TODO_MoveToEvLib.getPlayerChannel(player).pipeline().addBefore("packet_handler", "mute_deaths", new ChannelDuplexHandler(){
+		PacketUtils.getPlayerChannel(player).pipeline().addBefore("packet_handler", "mute_deaths", new ChannelDuplexHandler(){
 			final UUID uuid = player.getUniqueId();
 			@Override public void write(ChannelHandlerContext context, Object packet, ChannelPromise promise) throws Exception {
-				if(!outboundPacketClazz.isInstance(packet)){ // Not a chat packet
+				if(!outboundChatPacketClazz.isInstance(packet)){ // Not a chat packet
 					super.write(context, packet, promise);
 					return;
 				}
-				//pl.getLogger().info("chat packet");
+//				pl.getLogger().info("chat packet:\n"+packet+"\n");
 				final Object chatBaseComp = chatBaseCompField == null ? packet : chatBaseCompField.of(packet).get();
 				if(chatBaseComp == null){ // Chat packet does not have a comp field/method (pre-1.19)
 					super.write(context, packet, promise);
 					return;
 				}
-				//pl.getLogger().info("has base comp");
-				final String jsonMsg = (String)(chatBaseCompField == null ? getChatBaseComp.of(packet).call() : toJsonMethod.call(chatBaseComp));
+//				if(chatBaseCompField != null) pl.getLogger().info("chat packet base comp:\n"+chatBaseComp+"\n");
+				final String jsonMsg = (String)(chatBaseCompField != null ? toJsonMethod.call(chatBaseComp) :
+					getJsonKyori == null ? getChatBaseComp.of(packet).call() : getJsonKyori.of(jsonSerializerKyori).call(getChatBaseComp.of(packet).call())
+				);
 				if(jsonMsg == null){ // Chat comp is not a json object
 					super.write(context, packet, promise);
 					return;
 				}
-				//pl.getLogger().info("is json");
+//				pl.getLogger().info("chat packet isn't blocked");
 				if(!jsonMsg.startsWith("{\"translate\":\"death.")){
 					super.write(context, packet, promise);
 					return;
 				}
 //				pl.getLogger().info("detected death msg:\n"+jsonMsg);
-				final Matcher matcher = uuidPattern.matcher(jsonMsg);
-				if(!matcher.find()){
-					pl.getLogger().warning("Unable to find UUID from death message: "+jsonMsg);
-					pl.getLogger().warning("This is probably caused by another plugin destructively modifying the selector");
+				final UUID victimUUID; // uuid of entity that died
+				final Matcher matcher1 = uuidPattern1.matcher(jsonMsg), matcher2;
+				if(matcher1.find()){
+					victimUUID = UUID.fromString(matcher1.group());
+					matcher2 = null;
+				}
+				else{
+					matcher2 = uuidPattern2.matcher(jsonMsg);
+					if(matcher2.find()) victimUUID = parseUUIDFromFourIntStrings(matcher2.group(1), matcher2.group(2), matcher2.group(3), matcher2.group(4));
+					else{
+						pl.getLogger().warning("Unable to find UUID from death message: "+jsonMsg);
+						pl.getLogger().warning("This is probably caused by another plugin destructively modifying the selector");
+						super.write(context, packet, promise);
+						return;
+					}
+				}
+				HashSet<UUID> mutedVictims = blockedVictims.get(uuid);
+				if(mutedVictims != null && mutedVictims.contains(victimUUID)) return;
+
+				final UUID killerUUID; // TODO: Is killerUUID the only other id? Is it always 2nd?
+				if(matcher1.find()) killerUUID = UUID.fromString(matcher1.group());
+				else if(matcher2 != null && matcher2.find()){
+					killerUUID = parseUUIDFromFourIntStrings(matcher2.group(1), matcher2.group(2), matcher2.group(3), matcher2.group(4));
+				}
+				else{ // No killer found
 					super.write(context, packet, promise);
 					return;
 				}
-				final UUID victimUUID = UUID.fromString(matcher.group()); // victimUUID is always first
-				HashSet<UUID> mutedVictims = blockedVictims.get(uuid);
-				if(mutedVictims != null && mutedVictims.contains(victimUUID)) return;
-				if(matcher.find()){
-					final UUID killerUUID = UUID.fromString(matcher.group()); // TODO: Is killerUUID the only other id? Is it always 2nd?
-					HashSet<UUID> mutedKillers = blockedKillers.get(uuid);
-					if(mutedKillers != null && mutedKillers.contains(killerUUID)) return;
-				}
+				HashSet<UUID> mutedKillers = blockedKillers.get(uuid);
+				if(mutedKillers != null && mutedKillers.contains(killerUUID)) return;
+
 				super.write(context, packet, promise);
 				return;
 			}
