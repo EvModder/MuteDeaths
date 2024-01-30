@@ -42,7 +42,7 @@ public class DeathMessagePacketIntercepter{
 		pl = plugin;
 		blockedKillers = new HashMap<>();
 		blockedVictims = new HashMap<>();
-		
+
 		RefField field = null;
 		RefMethod method = null, kyoriMethod = null; Object kyoriObj = null;
 		try{field = outboundChatPacketClazz.findField(chatBaseCompClazz);}
