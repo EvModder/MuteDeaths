@@ -11,6 +11,7 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
+import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 
 /**
@@ -33,8 +34,9 @@ public class MuteDeaths extends EvPlugin{
 		try{
 			Class.forName("net.evmodder.DropHeads.events.BeheadMessageEvent");
 			beheadMessageBlocker = new BeheadMessageIntercepter(this);
-			deathMuteIncludesBehead = getServer().getPluginManager().getPlugin("DropHeads").getConfig()
-					.getBoolean("behead-announcement-replaces-player-death-event-message", false);
+			final Plugin dh = getServer().getPluginManager().getPlugin("DropHeads");
+			deathMuteIncludesBehead = dh != null && dh.getConfig() != null
+					&& dh.getConfig().getBoolean("behead-announcement-replaces-player-death-event-message", false);
 		}
 		catch(ClassNotFoundException e){}
 		catch(IllegalStateException e){getLogger().warning("reload issue?: "); e.printStackTrace();}
