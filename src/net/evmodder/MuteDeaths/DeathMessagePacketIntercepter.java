@@ -16,11 +16,11 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
-import net.evmodder.EvLib.extras.PacketUtils;
-import net.evmodder.EvLib.extras.ReflectionUtils;
-import net.evmodder.EvLib.extras.ReflectionUtils.RefClass;
-import net.evmodder.EvLib.extras.ReflectionUtils.RefField;
-import net.evmodder.EvLib.extras.ReflectionUtils.RefMethod;
+import net.evmodder.EvLib.bukkit.PacketUtils;
+import net.evmodder.EvLib.bukkit.ReflectionUtils;
+import net.evmodder.EvLib.bukkit.ReflectionUtils.RefClass;
+import net.evmodder.EvLib.bukkit.ReflectionUtils.RefField;
+import net.evmodder.EvLib.bukkit.ReflectionUtils.RefMethod;
 
 public class DeathMessagePacketIntercepter{
 	private final Plugin pl;

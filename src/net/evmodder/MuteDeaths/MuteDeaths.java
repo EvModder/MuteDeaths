@@ -1,7 +1,7 @@
 package net.evmodder.MuteDeaths;
 
-import net.evmodder.EvLib.EvCommand;
-import net.evmodder.EvLib.EvPlugin;
+import net.evmodder.EvLib.bukkit.EvCommand;
+import net.evmodder.EvLib.bukkit.EvPlugin;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
