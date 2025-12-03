@@ -1,11 +1,12 @@
 package net.evmodder.MuteDeaths;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -16,26 +17,20 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
+import net.evmodder.DropHeads.Cursed_1_21_6_stuff;
 import net.evmodder.EvLib.bukkit.PacketUtils;
-import net.evmodder.EvLib.bukkit.ReflectionUtils;
-import net.evmodder.EvLib.bukkit.ReflectionUtils.RefClass;
-import net.evmodder.EvLib.bukkit.ReflectionUtils.RefField;
-import net.evmodder.EvLib.bukkit.ReflectionUtils.RefMethod;
+import net.evmodder.EvLib.util.ReflectionUtils;
 
 public class DeathMessagePacketIntercepter{
 	private final Plugin pl;
 	private final HashMap<UUID, HashSet<UUID>> blockedKillers, blockedVictims;
 
-	private final RefClass outboundChatPacketClazz = ReflectionUtils.getRefClass(
+	private final Class<?> outboundChatPacketClazz = ReflectionUtils.getClass(
 			"{nms}.PacketPlayOutChat", "{nm}.network.protocol.game.PacketPlayOutChat", "{nm}.network.protocol.game.ClientboundSystemChatPacket");
-	private final RefClass chatBaseCompClazz = ReflectionUtils.getRefClass(
+	private final Class<?> chatBaseCompClazz = ReflectionUtils.getClass(
 			"{nms}.IChatBaseComponent", "{nm}.network.chat.IChatBaseComponent");
-	private final RefClass chatSerializerClazz = ReflectionUtils.getRefClass(
-			"{nms}.IChatBaseComponent$ChatSerializer", "{nm}.network.chat.IChatBaseComponent$ChatSerializer");
-	private final RefField chatBaseCompField;
-	private final RefMethod getChatBaseComp;
-	private final RefMethod getJsonKyori; private final Object jsonSerializerKyori;
-	private final RefMethod toJsonMethod; private final Object registryAccessObj;//class: IRegistryCustom.Dimension
+	private final Field chatBaseCompField;
+	private final Method toJsonMethod;
 	private final Pattern uuidPattern1 = Pattern.compile("[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}");
 	private final Pattern uuidPattern2 = Pattern.compile("\\[I?;?\\s*(-?[0-9]+),\\s*(-?[0-9]+),\\s*(-?[0-9]+),\\s*(-?[0-9]+)\\s*\\]");
 
@@ -44,42 +39,11 @@ public class DeathMessagePacketIntercepter{
 		blockedKillers = new HashMap<>();
 		blockedVictims = new HashMap<>();
 
-		RefField field = null;
-		RefMethod method = null, kyoriMethod = null; Object kyoriObj = null;
-		try{field = outboundChatPacketClazz.findField(chatBaseCompClazz);}
-		catch(RuntimeException e1){
-			try{
-				method = outboundChatPacketClazz.getMethod("adventure$content");
-				kyoriObj = ReflectionUtils.getRefClass("net.kyori.adventure.text.serializer.json.JSONComponentSerializer").getMethod("json").call();
-				kyoriMethod = ReflectionUtils.getRefClass("net.kyori.adventure.text.serializer.ComponentSerializer").findMethodByName("serialize");
-			}
-			catch(RuntimeException e2){method = outboundChatPacketClazz.getMethod("content");}
-		}
-		finally{
-			chatBaseCompField = field;
-			getChatBaseComp = method;
-			getJsonKyori = kyoriMethod;
-			jsonSerializerKyori = kyoriObj;
-		}
-
-		RefMethod toJsonMethodTemp; Object registryAccessObjTemp = null;
-		try{//1.20.5+
-			toJsonMethodTemp = chatSerializerClazz.findMethod(/*isStatic=*/true, String.class, chatBaseCompClazz,
-					ReflectionUtils.getRefClass("{nm}.core.HolderLookup$Provider", "{nm}.core.HolderLookup$a"));
-			// If above succeeds:
-			try{
-				Object nmsServerObj = ReflectionUtils.getRefClass("{cb}.CraftServer").getMethod("getServer").of(Bukkit.getServer()).call();
-				RefClass registryAccessClazz = ReflectionUtils.getRefClass("net.minecraft.core.IRegistryCustom$Dimension");
-				registryAccessObjTemp = ReflectionUtils.getRefClass("{nm}.server.MinecraftServer")
-						.findMethod(/*isStatic=*/false, registryAccessClazz).of(nmsServerObj).call();
-			}
-			catch(RuntimeException ex){ex.printStackTrace();}
-		}
-		catch(RuntimeException e){
-			toJsonMethodTemp = chatSerializerClazz.findMethod(/*isStatic=*/true, String.class, chatBaseCompClazz);
-		}
-		toJsonMethod = toJsonMethodTemp;
-		registryAccessObj = registryAccessObjTemp;
+		Field field = null;
+		try{field = ReflectionUtils.findField(outboundChatPacketClazz, chatBaseCompClazz);}
+		catch(RuntimeException e1){}
+		finally{chatBaseCompField = field;}
+		toJsonMethod = ReflectionUtils.getMethod(Cursed_1_21_6_stuff.class, "chatComponentToJson", Object.class);
 
 		// Injecting packet intercepter when players join/leave
 		pl.getServer().getPluginManager().registerEvents(new Listener(){
@@ -140,16 +104,13 @@ public class DeathMessagePacketIntercepter{
 					return;
 				}
 //				pl.getLogger().info("chat packet:\n"+packet+"\n");
-				final Object chatBaseComp = chatBaseCompField == null ? packet : chatBaseCompField.of(packet).get();
+				final Object chatBaseComp = chatBaseCompField == null ? packet : ReflectionUtils.get(chatBaseCompField, packet);
 				if(chatBaseComp == null){ // Chat packet does not have a comp field/method (pre-1.19)
 					super.write(context, packet, promise);
 					return;
 				}
 //				if(chatBaseCompField != null) pl.getLogger().info("chat packet base comp:\n"+chatBaseComp+"\n");
-				final String jsonMsg = (String)(chatBaseCompField != null ?
-						(registryAccessObj != null ? toJsonMethod.call(chatBaseComp, registryAccessObj) : toJsonMethod.call(chatBaseComp)) :
-					getJsonKyori == null ? getChatBaseComp.of(packet).call() : getJsonKyori.of(jsonSerializerKyori).call(getChatBaseComp.of(packet).call())
-				);
+				final String jsonMsg = (String)ReflectionUtils.callStatic(toJsonMethod, chatBaseComp);
 				if(jsonMsg == null){ // Chat comp is not a json object
 					super.write(context, packet, promise);
 					return;
