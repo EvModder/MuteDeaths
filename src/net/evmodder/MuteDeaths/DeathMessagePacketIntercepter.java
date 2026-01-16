@@ -1,7 +1,6 @@
 package net.evmodder.MuteDeaths;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.UUID;
@@ -17,7 +16,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
-import net.evmodder.DropHeads.Cursed_1_21_6_stuff;
+import net.evmodder.DropHeads.CompConverter;
 import net.evmodder.EvLib.bukkit.PacketUtils;
 import net.evmodder.EvLib.util.ReflectionUtils;
 
@@ -30,7 +29,6 @@ public class DeathMessagePacketIntercepter{
 	private final Class<?> chatBaseCompClazz = ReflectionUtils.getClass(
 			"{nms}.IChatBaseComponent", "{nm}.network.chat.IChatBaseComponent");
 	private final Field chatBaseCompField;
-	private final Method toJsonMethod;
 	private final Pattern uuidPattern1 = Pattern.compile("[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}");
 	private final Pattern uuidPattern2 = Pattern.compile("\\[I?;?\\s*(-?[0-9]+),\\s*(-?[0-9]+),\\s*(-?[0-9]+),\\s*(-?[0-9]+)\\s*\\]");
 
@@ -43,7 +41,6 @@ public class DeathMessagePacketIntercepter{
 		try{field = ReflectionUtils.findField(outboundChatPacketClazz, chatBaseCompClazz);}
 		catch(RuntimeException e1){}
 		finally{chatBaseCompField = field;}
-		toJsonMethod = ReflectionUtils.getMethod(Cursed_1_21_6_stuff.class, "chatComponentToJson", Object.class);
 
 		// Injecting packet intercepter when players join/leave
 		pl.getServer().getPluginManager().registerEvents(new Listener(){
@@ -110,7 +107,7 @@ public class DeathMessagePacketIntercepter{
 					return;
 				}
 //				if(chatBaseCompField != null) pl.getLogger().info("chat packet base comp:\n"+chatBaseComp+"\n");
-				final String jsonMsg = (String)ReflectionUtils.callStatic(toJsonMethod, chatBaseComp);
+				final String jsonMsg = CompConverter.jsonStrFromChatComp(chatBaseComp);
 				if(jsonMsg == null){ // Chat comp is not a json object
 					super.write(context, packet, promise);
 					return;
